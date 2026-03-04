@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>凸レンズの光の屈折シミュレータ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif; background-color: #f3f4f6; }
+        canvas { touch-action: none; }
+        .glass-panel { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 text-gray-800">
+
+    <div class="max-w-6xl mx-auto">
+        <header class="mb-6 text-center">
+            <h1 class="text-3xl font-bold text-blue-700 mb-2">凸レンズの光の屈折シミュレータ</h1>
+            <p class="text-gray-600">要素を左右にドラッグして動かし、光の道筋と像のでき方を観察してみましょう。</p>
+        </header>
+
+        <div class="flex flex-col lg:flex-row gap-6">
+            <!-- 左側：メインシミュレータ -->
+            <div class="flex-grow glass-panel rounded-2xl shadow-lg p-4 border border-gray-200">
+                <h2 class="text-lg font-bold mb-3 border-b pb-2 flex justify-between items-center">
+                    <span>横から見た図（光の道筋）</span>
+                    <span class="text-sm font-normal text-gray-500">※要素を左右にドラッグできます</span>
+                </h2>
+                
+                <div class="relative w-full aspect-[2/1] bg-white rounded-lg border border-gray-300 overflow-hidden shadow-inner cursor-crosshair">
+                    <canvas id="simCanvas" class="w-full h-full block"></canvas>
+                </div>
+
+                <!-- コントロールパネル -->
+                <div class="mt-4 bg-yellow-50 p-3 rounded-lg border border-yellow-200 shadow-sm flex flex-col gap-3">
+                    
+                    <!-- 観察モード切替 -->
+                    <div class="flex flex-wrap items-center gap-4 text-sm pb-3 border-b border-yellow-200">
+                        <span class="font-bold text-gray-700">👁 観察モード:</span>
+                        <label class="flex items-center gap-1 cursor-pointer hover:text-blue-700 transition font-medium">
+                            <input type="radio" name="obsMode" value="real" checked class="w-4 h-4 text-blue-600"> 実像とスクリーン
+                        </label>
+                        <label class="flex items-center gap-1 cursor-pointer hover:text-blue-700 transition font-medium">
+                            <input type="radio" name="obsMode" value="virtual" class="w-4 h-4 text-blue-600"> 虚像と目
+                        </label>
+                    </div>
+
+                    <!-- 光源選択とアニメーション -->
+                    <div class="flex flex-col md:flex-row gap-4 items-center justify-between">
+                        <div id="source-selector-panel" class="flex flex-wrap items-center gap-4 text-sm transition-opacity duration-300">
+                            <span class="font-bold text-gray-700">📍 光の出発点 (実像用):</span>
+                            <label class="flex items-center gap-1 cursor-pointer hover:text-blue-700 transition font-medium">
+                                <input type="radio" name="lightSource" value="tip" checked class="w-4 h-4 text-blue-600"> 炎の先
+                            </label>
+                            <label class="flex items-center gap-1 cursor-pointer hover:text-blue-700 transition font-medium">
+                                <input type="radio" name="lightSource" value="base" class="w-4 h-4 text-blue-600"> 炎の付け根
+                            </label>
+                            <label class="flex items-center gap-1 cursor-pointer hover:text-blue-700 transition font-medium">
+                                <input type="radio" name="lightSource" value="center" class="w-4 h-4 text-blue-600"> 中央
+                            </label>
+                            <label class="flex items-center gap-1 cursor-pointer hover:text-blue-700 transition font-medium">
+                                <input type="radio" name="lightSource" value="bottom" class="w-4 h-4 text-blue-600"> 下端
+                            </label>
+                        </div>
+                        <button id="animBtn" class="px-5 py-2 bg-yellow-500 text-white font-bold rounded-full shadow hover:bg-yellow-600 transition w-full md:w-auto flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
+                            <span>光の道筋を見る</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm">
+                    <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                        <span class="block text-gray-500 mb-1">焦点距離 (f)</span>
+                        <span class="font-bold text-lg">100</span> <span class="text-xs">px</span>
+                    </div>
+                    <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                        <span class="block text-gray-500 mb-1">物体からレンズ (a)</span>
+                        <span id="dist-a" class="font-bold text-lg">200</span> <span class="text-xs">px</span>
+                    </div>
+                    <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                        <span class="block text-gray-500 mb-1">レンズから実像 (b)</span>
+                        <span id="dist-b" class="font-bold text-lg text-blue-600">-</span> <span class="text-xs">px</span>
+                    </div>
+                    <div class="bg-green-50 p-3 rounded-lg border border-green-100">
+                        <span id="dist-s-label" class="block text-gray-500 mb-1">レンズからスクリーン</span>
+                        <span id="dist-s" class="font-bold text-lg text-green-600">200</span> <span class="text-xs">px</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右側：スクリーンビューと解説 -->
+            <div class="w-full lg:w-80 flex flex-col gap-6">
+                <!-- スクリーンビュー -->
+                <div class="glass-panel rounded-2xl shadow-lg p-4 border border-gray-200">
+                    <h2 id="view-title" class="text-lg font-bold mb-3 border-b pb-2">正面から見たスクリーン</h2>
+                    <div class="relative w-full aspect-square bg-gray-900 rounded-lg border border-gray-700 overflow-hidden shadow-inner flex items-center justify-center">
+                        <canvas id="screenCanvas" width="300" height="300" class="w-full h-full block"></canvas>
+                    </div>
+                    <div id="status-message" class="mt-4 p-3 rounded-lg font-bold text-center text-sm transition-colors duration-300">
+                        メッセージ
+                    </div>
+                </div>
+
+                <!-- 解説パネル -->
+                <div class="glass-panel rounded-2xl shadow-lg p-4 border border-gray-200 text-sm">
+                    <h3 id="hint-title" class="font-bold text-lg mb-2 text-gray-700">💡 学習のポイント</h3>
+                    <ul id="hint-list" class="list-disc pl-5 space-y-2 text-gray-600">
+                        <!-- JSで動的に書き換わります -->
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (() => {
+            const canvas = document.getElementById('simCanvas');
+            const ctx = canvas.getContext('2d');
+            const screenCanvas = document.getElementById('screenCanvas');
+            const sCtx = screenCanvas.getContext('2d');
+
+            const F = 100;
+            let axisY = 200;
+            let lensX = 400;
+            
+            let candleX = 0;
+            let screenX = 0; // 実像モード時はスクリーン、虚像モード時は目の位置
+            const candleHeight = 40;
+            const flameTipY = candleHeight + 20;
+
+            let draggingElement = null;
+            let isDragging = false;
+
+            let currentSource = 'tip';
+            let obsMode = 'real'; // 'real' or 'virtual'
+            let isAnimating = false;
+            let animProgress = 0;
+            let lastTime = 0;
+
+            // --- UIイベント ---
+            document.querySelectorAll('input[name="obsMode"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    obsMode = e.target.value;
+                    const sourcePanel = document.getElementById('source-selector-panel');
+                    // 虚像モード時は出発点選択を無効化（全体のアニメーションになるため）
+                    if (obsMode === 'virtual') {
+                        sourcePanel.style.opacity = '0.4';
+                        sourcePanel.style.pointerEvents = 'none';
+                    } else {
+                        sourcePanel.style.opacity = '1';
+                        sourcePanel.style.pointerEvents = 'auto';
+                    }
+                    if (isAnimating) animProgress = 0;
+                    draw();
+                });
+            });
+
+            document.querySelectorAll('input[name="lightSource"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    currentSource = e.target.value;
+                    if (isAnimating) animProgress = 0;
+                    draw();
+                });
+            });
+
+            const animBtn = document.getElementById('animBtn');
+            const playIcon = `<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>`;
+            const stopIcon = `<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clip-rule="evenodd"></path></svg>`;
+
+            animBtn.addEventListener('click', () => {
+                if (isAnimating) {
+                    isAnimating = false;
+                    animBtn.innerHTML = `${playIcon}<span>光の道筋を見る</span>`;
+                    animBtn.classList.replace('bg-red-500', 'bg-yellow-500');
+                    animBtn.classList.replace('hover:bg-red-600', 'hover:bg-yellow-600');
+                    draw();
+                } else {
+                    isAnimating = true;
+                    animProgress = 0;
+                    lastTime = performance.now();
+                    animBtn.innerHTML = `${stopIcon}<span>アニメーション停止</span>`;
+                    animBtn.classList.replace('bg-yellow-500', 'bg-red-500');
+                    animBtn.classList.replace('hover:bg-yellow-600', 'hover:bg-red-600');
+                    requestAnimationFrame(updateAnimation);
+                }
+            });
+
+            const RAY_SPEED = 0.4;
+            function updateAnimation(currentTime) {
+                if (!isAnimating) return;
+                const dt = currentTime - lastTime;
+                lastTime = currentTime;
+                
+                animProgress += dt * RAY_SPEED; 
+                if (animProgress > canvas.width * 3.5) animProgress = 0;
+                
+                draw();
+                requestAnimationFrame(updateAnimation);
+            }
+
+            function handleResize() {
+                if (!canvas || !canvas.parentElement) return;
+                canvas.width = canvas.parentElement.clientWidth;
+                canvas.height = canvas.parentElement.clientHeight;
+                lensX = canvas.width / 2;
+                axisY = canvas.height / 2;
+
+                if (!isDragging) {
+                    candleX = lensX - (F * 2.5);
+                    screenX = lensX + (F * 1.5);
+                }
+                draw();
+            }
+            window.addEventListener('resize', handleResize);
+
+            function getSourceY() {
+                switch(currentSource) {
+                    case 'tip': return axisY - flameTipY;
+                    case 'base': return axisY - candleHeight;
+                    case 'center': return axisY - candleHeight / 2;
+                    case 'bottom': return axisY;
+                    default: return axisY - flameTipY;
+                }
+            }
+
+            // --- 描画関数 ---
+            function drawCandle(context, x, y, baseHeight, mag = 1.0, isVirtual = false, isInverted = false) {
+                context.save();
+                context.translate(x, y);
+                if (isInverted) context.scale(1, -1);
+                context.scale(mag, mag);
+                if (isVirtual) context.globalAlpha = 0.4;
+
+                const h = baseHeight;
+                context.fillStyle = isVirtual ? '#cbd5e1' : '#fef08a';
+                context.strokeStyle = isVirtual ? '#94a3b8' : '#ca8a04';
+                context.lineWidth = 2 / mag;
+                const w = 16;
+                context.fillRect(-w/2, -h, w, h);
+                if (!isVirtual) context.strokeRect(-w/2, -h, w, h);
+
+                context.beginPath();
+                context.moveTo(0, -h);
+                context.lineTo(0, -h - 6);
+                context.strokeStyle = '#333';
+                context.lineWidth = 1.5 / mag;
+                context.stroke();
+
+                context.beginPath();
+                context.moveTo(0, -h - 20);
+                context.quadraticCurveTo(8, -h - 10, 0, -h - 6);
+                context.quadraticCurveTo(-8, -h - 10, 0, -h - 20);
+                context.fillStyle = isVirtual ? '#fb923c' : '#ef4444';
+                context.fill();
+                
+                context.beginPath();
+                context.moveTo(0, -h - 16);
+                context.quadraticCurveTo(4, -h - 10, 0, -h - 6);
+                context.quadraticCurveTo(-4, -h - 10, 0, -h - 16);
+                context.fillStyle = '#fbbf24';
+                context.fill();
+
+                context.restore();
+            }
+
+            function drawEye(context, x, y) {
+                context.save();
+                context.translate(x, y);
+                
+                // 目の輪郭 (レンズ側を見る)
+                context.beginPath();
+                context.moveTo(15, 0);
+                context.quadraticCurveTo(0, -20, -15, 0);
+                context.quadraticCurveTo(0, 20, 15, 0);
+                context.fillStyle = '#ffffff';
+                context.fill();
+                context.lineWidth = 2;
+                context.strokeStyle = '#334155';
+                context.stroke();
+
+                // 瞳
+                context.beginPath();
+                context.arc(-5, 0, 7, 0, Math.PI * 2);
+                context.fillStyle = '#0f172a';
+                context.fill();
+
+                // 瞳孔
+                context.beginPath();
+                context.arc(-6, 0, 3, 0, Math.PI * 2);
+                context.fillStyle = '#000000';
+                context.fill();
+
+                // 光の反射
+                context.beginPath();
+                context.arc(-8, -3, 2, 0, Math.PI * 2);
+                context.fillStyle = '#ffffff';
+                context.fill();
+
+                context.restore();
+            }
+
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // 背景と光軸
+                ctx.beginPath();
+                ctx.moveTo(0, axisY);
+                ctx.lineTo(canvas.width, axisY);
+                ctx.strokeStyle = '#94a3b8';
+                ctx.setLineDash([5, 5]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // 焦点
+                ctx.fillStyle = '#1e293b';
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                [{ x: lensX - F * 2, label: '2f' }, { x: lensX - F, label: 'f' }, { x: lensX + F, label: 'f' }, { x: lensX + F * 2, label: '2f' }].forEach(p => {
+                    ctx.beginPath();
+                    ctx.arc(p.x, axisY, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillText(p.label, p.x, axisY + 10);
+                });
+
+                // レンズ
+                ctx.beginPath();
+                ctx.ellipse(lensX, axisY, 12, 90, 0, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(56, 189, 248, 0.3)';
+                ctx.fill();
+                ctx.strokeStyle = '#0284c7';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                const a = lensX - candleX;
+                let b = Infinity;
+                let hasRealImage = false;
+                if (a !== F) b = (a * F) / (a - F);
+                if (a > F) hasRealImage = true;
+
+                const sourceY = getSourceY();
+
+                ctx.lineWidth = 1.5;
+                let imageX = lensX + b;
+                let imageY = 0;
+
+                // --- 作図の線 ---
+                if (a > F) {
+                    const mag = b / a;
+                    imageY = axisY + (sourceY - axisY) * -mag; 
+                    
+                    ctx.beginPath(); ctx.moveTo(candleX, sourceY); ctx.lineTo(lensX, sourceY); ctx.lineTo(imageX + (imageX - lensX)*0.2, imageY + (imageY - sourceY)*0.2);
+                    ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)'; ctx.stroke();
+                    
+                    ctx.beginPath(); ctx.moveTo(candleX, sourceY); ctx.lineTo(imageX + (imageX - candleX)*0.1, imageY + (imageY - sourceY)*0.1);
+                    ctx.strokeStyle = 'rgba(34, 197, 94, 0.6)'; ctx.stroke();
+
+                    drawCandle(ctx, imageX, axisY, candleHeight, mag, true, true);
+                    
+                    // 光源のマーク
+                    ctx.beginPath(); ctx.arc(candleX, sourceY, 5, 0, Math.PI * 2);
+                    ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = '#eab308'; ctx.lineWidth = 2; ctx.stroke();
+
+                } else if (a < F) {
+                    const mag = Math.abs(b) / a;
+                    imageY = axisY + (sourceY - axisY) * mag; 
+
+                    // 虚像モードの時は、わかりやすさのため教科書的な作図線を非表示にする
+                    if (obsMode === 'real') {
+                        ctx.beginPath(); ctx.moveTo(candleX, sourceY); ctx.lineTo(lensX, sourceY); ctx.lineTo(lensX + 200, sourceY + (axisY - sourceY) * (200 / F));
+                        ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)'; ctx.stroke();
+                        
+                        ctx.beginPath(); ctx.moveTo(candleX, sourceY); ctx.lineTo(lensX + 200, sourceY + (axisY - sourceY) * ((lensX + 200 - candleX) / a));
+                        ctx.strokeStyle = 'rgba(34, 197, 94, 0.6)'; ctx.stroke();
+
+                        ctx.setLineDash([4, 4]);
+                        ctx.beginPath(); ctx.moveTo(lensX, sourceY); ctx.lineTo(imageX, imageY); ctx.stroke();
+                        ctx.beginPath(); ctx.moveTo(candleX, sourceY); ctx.lineTo(imageX, imageY); ctx.stroke();
+                        ctx.setLineDash([]);
+                        
+                        // 光源のマーク
+                        ctx.beginPath(); ctx.arc(candleX, sourceY, 5, 0, Math.PI * 2);
+                        ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = '#eab308'; ctx.lineWidth = 2; ctx.stroke();
+                    }
+
+                    drawCandle(ctx, imageX, axisY, candleHeight, mag, true, false);
+
+                    // 虚像モードでアニメーション停止中なら、目に届く各光を薄く描画
+                    if (obsMode === 'virtual' && !isAnimating) {
+                        const points = [
+                            { y: axisY - flameTipY, color: '#ef4444', yeOffset: -6 },   // 赤 (炎の先)
+                            { y: axisY - candleHeight, color: '#f59e0b', yeOffset: -2 }, // 黄 (付け根)
+                            { y: axisY - candleHeight / 2, color: '#22c55e', yeOffset: 2 }, // 緑 (中央)
+                            { y: axisY, color: '#3b82f6', yeOffset: 6 }                // 青 (下端)
+                        ];
+                        ctx.lineWidth = 1.0;
+                        points.forEach(pt => {
+                            const y_o = pt.y;
+                            const y_i = axisY + (y_o - axisY) * mag;
+                            const x_e = screenX;
+                            const y_e = axisY + pt.yeOffset; // 瞳孔の範囲内に少し分散
+                            const y_L = y_i + (lensX - imageX) * (y_e - y_i) / (x_e - imageX);
+                            
+                            // 物体から目まで
+                            ctx.beginPath(); ctx.moveTo(candleX, y_o); ctx.lineTo(lensX, y_L); ctx.lineTo(x_e, y_e);
+                            ctx.strokeStyle = pt.color; ctx.globalAlpha = 0.6; ctx.stroke();
+                            
+                            // 目から虚像への錯覚の延長線
+                            ctx.save(); ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(x_e, y_e); ctx.lineTo(imageX, y_i);
+                            ctx.strokeStyle = pt.color; ctx.globalAlpha = 0.4; ctx.stroke(); ctx.restore();
+                            
+                            // ろうそく側の光の出発点に小さなマーク
+                            ctx.beginPath(); ctx.arc(candleX, y_o, 3, 0, Math.PI*2); ctx.fillStyle = pt.color; ctx.fill();
+                        });
+                        ctx.globalAlpha = 1.0;
+                    }
+                }
+
+                // --- アニメーション光線の描画 ---
+                if (isAnimating) {
+                    if (obsMode === 'virtual' && a < F) {
+                        // 【虚像モード特有のアニメーション：各部から目に集まる光】
+                        const points = [
+                            { y: axisY - flameTipY, color: '#ef4444', yeOffset: -6 },   // 炎の先
+                            { y: axisY - candleHeight, color: '#f59e0b', yeOffset: -2 }, // 付け根
+                            { y: axisY - candleHeight / 2, color: '#22c55e', yeOffset: 2 }, // 中央
+                            { y: axisY, color: '#3b82f6', yeOffset: 6 }                // 下端
+                        ];
+                        
+                        points.forEach(pt => {
+                            const y_o = pt.y;
+                            const mag = Math.abs(b) / a;
+                            const y_i = axisY + (y_o - axisY) * mag;
+                            const x_e = screenX;
+                            const y_e = axisY + pt.yeOffset;
+                            
+                            // レンズ上の通過点
+                            const y_L = y_i + (lensX - imageX) * (y_e - y_i) / (x_e - imageX);
+                            
+                            const d1 = Math.hypot(lensX - candleX, y_L - y_o);
+                            const d2 = Math.hypot(x_e - lensX, y_e - y_L);
+                            const d3 = Math.hypot(imageX - x_e, y_i - y_e);
+                            
+                            ctx.lineWidth = 2.5;
+                            
+                            if (animProgress <= d1) {
+                                // 1. 光源 -> レンズ
+                                const p = animProgress;
+                                ctx.beginPath(); ctx.moveTo(candleX, y_o); ctx.lineTo(candleX + (lensX - candleX)/d1 * p, y_o + (y_L - y_o)/d1 * p);
+                                ctx.strokeStyle = pt.color; ctx.stroke();
+                            } else if (animProgress <= d1 + d2) {
+                                // 2. レンズ -> 目
+                                ctx.beginPath(); ctx.moveTo(candleX, y_o); ctx.lineTo(lensX, y_L);
+                                ctx.strokeStyle = pt.color; ctx.stroke();
+                                
+                                const p = animProgress - d1;
+                                ctx.beginPath(); ctx.moveTo(lensX, y_L); ctx.lineTo(lensX + (x_e - lensX)/d2 * p, y_L + (y_e - y_L)/d2 * p);
+                                ctx.stroke();
+                            } else {
+                                // 3. 目から虚像へ逆走（脳の錯覚）
+                                ctx.beginPath(); ctx.moveTo(candleX, y_o); ctx.lineTo(lensX, y_L); ctx.lineTo(x_e, y_e);
+                                ctx.strokeStyle = pt.color; ctx.stroke();
+                                
+                                const p = animProgress - (d1 + d2);
+                                const drawDist = Math.min(p, d3);
+                                
+                                ctx.save();
+                                ctx.setLineDash([4, 4]);
+                                ctx.beginPath(); ctx.moveTo(x_e, y_e); ctx.lineTo(x_e + (imageX - x_e)/d3 * drawDist, y_e + (y_i - y_e)/d3 * drawDist);
+                                ctx.strokeStyle = pt.color;
+                                ctx.globalAlpha = 0.8;
+                                ctx.lineWidth = 3;
+                                ctx.stroke();
+                                ctx.restore();
+                                
+                                // 虚像の対応する位置に到達したら光る
+                                if (p >= d3) {
+                                     ctx.beginPath(); ctx.arc(imageX, y_i, 5, 0, Math.PI * 2);
+                                     ctx.fillStyle = pt.color; ctx.fill();
+                                }
+                            }
+                            // 出発点マーク
+                            ctx.beginPath(); ctx.arc(candleX, y_o, 3, 0, Math.PI*2); ctx.fillStyle = pt.color; ctx.fill();
+                        });
+                    } else {
+                        // 【実像モードのアニメーション】
+                        ctx.lineWidth = 2.5;
+                        const rayColor = 'rgba(234, 179, 8, 0.9)';
+                        const lensRays = [-80, -40, 0, 40, 80];
+                        lensRays.forEach(rayOffset => {
+                            const passY = axisY + rayOffset;
+                            const dx1 = lensX - candleX, dy1 = passY - sourceY;
+                            const dist1 = Math.hypot(dx1, dy1);
+                            
+                            if (animProgress <= dist1) {
+                                const currentX1 = candleX + (dx1 / dist1) * animProgress;
+                                const currentY1 = sourceY + (dy1 / dist1) * animProgress;
+                                ctx.beginPath(); ctx.moveTo(candleX, sourceY); ctx.lineTo(currentX1, currentY1);
+                                ctx.strokeStyle = rayColor; ctx.stroke();
+                            } else {
+                                ctx.beginPath(); ctx.moveTo(candleX, sourceY); ctx.lineTo(lensX, passY);
+                                ctx.strokeStyle = rayColor; ctx.stroke();
+
+                                const remainingDist = animProgress - dist1;
+                                let targetX, targetY;
+                                
+                                if (a > F) {
+                                    const dirX = imageX - lensX, dirY = imageY - passY;
+                                    const stretch = (canvas.width * 2) / Math.abs(dirX);
+                                    targetX = lensX + dirX * stretch; targetY = passY + dirY * stretch;
+                                } else if (a < F) {
+                                    const dirX = lensX - imageX, dirY = passY - imageY;
+                                    const stretch = (canvas.width * 2) / dirX; 
+                                    targetX = lensX + dirX * stretch; targetY = passY + dirY * stretch;
+                                    
+                                    const bDx = imageX - lensX, bDy = imageY - passY;
+                                    const bDist = Math.hypot(bDx, bDy);
+                                    const drawBack = Math.min(remainingDist, bDist);
+                                    ctx.save(); ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(lensX, passY);
+                                    ctx.lineTo(lensX + (bDx/bDist)*drawBack, passY + (bDy/bDist)*drawBack);
+                                    ctx.strokeStyle = 'rgba(234, 179, 8, 0.4)'; ctx.stroke(); ctx.restore();
+                                } else {
+                                    targetX = lensX + canvas.width * 2; targetY = passY;
+                                }
+
+                                const dx2 = targetX - lensX, dy2 = targetY - passY;
+                                const dist2 = Math.hypot(dx2, dy2);
+                                const drawDist2 = Math.min(remainingDist, dist2);
+
+                                ctx.beginPath(); ctx.moveTo(lensX, passY); ctx.lineTo(lensX + (dx2/dist2)*drawDist2, passY + (dy2/dist2)*drawDist2); ctx.stroke();
+                                
+                                if (a > F && remainingDist >= Math.hypot(imageX - lensX, imageY - passY)) {
+                                    ctx.beginPath(); ctx.arc(imageX, imageY, 3, 0, Math.PI * 2);
+                                    ctx.fillStyle = 'rgba(250, 204, 21, 0.8)'; ctx.fill();
+                                }
+                            }
+                        });
+                    }
+                }
+
+                drawCandle(ctx, candleX, axisY, candleHeight, 1.0, false, false);
+
+                // --- スクリーン または 目の描画 ---
+                if (obsMode === 'real') {
+                    ctx.beginPath(); ctx.moveTo(screenX, axisY - 80); ctx.lineTo(screenX, axisY + 80);
+                    ctx.strokeStyle = '#334155'; ctx.lineWidth = 6; ctx.stroke();
+                    ctx.fillStyle = '#475569'; ctx.fillRect(screenX - 15, axisY + 80, 30, 10);
+                } else {
+                    drawEye(ctx, screenX, axisY);
+                }
+
+                // UIヒント
+                ctx.fillStyle = '#0f172a';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+                ctx.beginPath(); ctx.moveTo(candleX - 10, axisY + 10); ctx.lineTo(candleX - 15, axisY + 15); ctx.lineTo(candleX - 10, axisY + 20); ctx.fill();
+                ctx.beginPath(); ctx.moveTo(candleX + 10, axisY + 10); ctx.lineTo(candleX + 15, axisY + 15); ctx.lineTo(candleX + 10, axisY + 20); ctx.fill();
+                ctx.font = '12px sans-serif'; ctx.fillText("ドラッグ", candleX, axisY + 35);
+                ctx.font = 'bold 14px sans-serif'; ctx.fillText("ろうそく", candleX, axisY + 55);
+                
+                if (obsMode === 'real') {
+                    ctx.beginPath(); ctx.moveTo(screenX - 15, axisY - 90); ctx.lineTo(screenX - 20, axisY - 85); ctx.lineTo(screenX - 15, axisY - 80); ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(screenX + 15, axisY - 90); ctx.lineTo(screenX + 20, axisY - 85); ctx.lineTo(screenX + 15, axisY - 80); ctx.fill();
+                    ctx.font = 'bold 14px sans-serif'; ctx.fillText("スクリーン", screenX, axisY - 120);
+                    ctx.font = '12px sans-serif'; ctx.fillText("ドラッグ", screenX, axisY - 100);
+                } else {
+                    ctx.beginPath(); ctx.moveTo(screenX - 15, axisY - 40); ctx.lineTo(screenX - 20, axisY - 35); ctx.lineTo(screenX - 15, axisY - 30); ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(screenX + 15, axisY - 40); ctx.lineTo(screenX + 20, axisY - 35); ctx.lineTo(screenX + 15, axisY - 30); ctx.fill();
+                    ctx.font = 'bold 14px sans-serif'; ctx.fillText("目 (観察者)", screenX, axisY - 70);
+                    ctx.font = '12px sans-serif'; ctx.fillText("ドラッグ", screenX, axisY - 50);
+                }
+
+                updateUI(a, b, screenX - lensX, hasRealImage);
+            }
+
+            function updateUI(a, b, s, hasRealImage) {
+                document.getElementById('dist-a').innerText = Math.round(a);
+                document.getElementById('dist-s').innerText = Math.round(s);
+                
+                const bEl = document.getElementById('dist-b');
+                if (hasRealImage) bEl.innerText = Math.round(b);
+                else bEl.innerText = "実像なし";
+
+                const viewTitle = document.getElementById('view-title');
+                const distSLabel = document.getElementById('dist-s-label');
+                const hintTitle = document.getElementById('hint-title');
+                const hintList = document.getElementById('hint-list');
+                const statusBox = document.getElementById('status-message');
+
+                sCtx.clearRect(0, 0, screenCanvas.width, screenCanvas.height);
+
+                if (obsMode === 'real') {
+                    // --- 実像モードのUI更新 ---
+                    viewTitle.innerText = "正面から見たスクリーン";
+                    distSLabel.innerText = "レンズからスクリーン";
+                    hintTitle.innerText = "💡 学習のポイント";
+                    hintList.innerHTML = `
+                        <li>ろうそくを<strong>焦点距離の2倍 (2f)</strong> の位置に置くと、像の大きさはどうなりますか？</li>
+                        <li><strong>「光の道筋を見る」</strong>ボタンを押すと、出発点からあらゆる方向に出た光が、レンズを通って1点に集まる様子が確認できます。</li>
+                        <li>光の出発点を変えても、必ず像の同じ位置に光が集まることを確かめてみましょう。</li>
+                    `;
+
+                    if (hasRealImage) {
+                        const diff = Math.abs(s - b);
+                        const blurAmount = diff * 0.15;
+                        const mag = s / a;
+                        
+                        sCtx.save();
+                        sCtx.translate(150, 150);
+                        sCtx.filter = `blur(${blurAmount}px)`;
+                        sCtx.fillStyle = 'rgba(255, 200, 100, 0.05)';
+                        sCtx.fillRect(-500, -500, 1000, 1000);
+                        drawCandle(sCtx, 0, 0, candleHeight, mag, false, true);
+                        sCtx.restore();
+
+                        if (diff < 5) {
+                            statusBox.innerText = "✨ ピントが合っています！（倒立実像）";
+                            statusBox.className = "mt-4 p-3 rounded-lg font-bold text-center text-sm bg-green-100 text-green-800 border border-green-300";
+                            let magText = Math.abs(mag - 1.0) < 0.1 ? "（物体と同じ大きさ）" : (mag > 1.0 ? "（物体より大きい）" : "（物体より小さい）");
+                            statusBox.innerText += "\n" + magText;
+                        } else {
+                            statusBox.innerText = "像がぼやけています。スクリーンを動かしてピントを合わせましょう。";
+                            statusBox.className = "mt-4 p-3 rounded-lg font-bold text-center text-sm bg-yellow-100 text-yellow-800 border border-yellow-300";
+                        }
+                    } else {
+                        sCtx.fillStyle = 'rgba(255, 230, 180, 0.2)';
+                        sCtx.fillRect(0, 0, 300, 300);
+                        statusBox.innerText = a === F ? "光は平行になり、像はできません。" : "スクリーンに像は映りません。\n（虚像モードに切り替えてみましょう）";
+                        statusBox.className = "mt-4 p-3 rounded-lg font-bold text-center text-sm bg-gray-200 text-gray-700 border border-gray-400";
+                    }
+
+                } else {
+                    // --- 虚像モードのUI更新 ---
+                    viewTitle.innerText = "レンズ越しの視界";
+                    distSLabel.innerText = "レンズから目";
+                    hintTitle.innerText = "🧠 虚像が見える仕組み";
+                    hintList.innerHTML = `
+                        <li>ろうそくの<strong>炎の先（赤）、付け根（黄）、中央（緑）、下端（青）</strong>から出た光が、それぞれ目に飛び込みます。</li>
+                        <li>目は、それぞれの光が「曲がらずに直進してきた」と錯覚するため、その延長線上に像があると感じます。</li>
+                        <li>光の延長線が元の位置関係のまま拡大されるため、<strong>大きくて正しい向きの像（正立虚像）</strong>が完成します。</li>
+                    `;
+
+                    sCtx.fillStyle = '#f0f9ff'; // 明るい背景
+                    sCtx.fillRect(0, 0, 300, 300);
+
+                    sCtx.save();
+                    sCtx.beginPath();
+                    sCtx.arc(150, 150, 140, 0, Math.PI * 2);
+                    sCtx.clip(); // レンズの丸枠でクリッピング
+                    sCtx.fillStyle = '#ffffff';
+                    sCtx.fill();
+
+                    if (a < F) {
+                        const mag = Math.abs(b) / a;
+                        const visualMag = mag * 1.2; // 見た目の倍率調整
+                        
+                        sCtx.translate(150, 260); // 下部基準に
+                        drawCandle(sCtx, 0, 0, candleHeight, visualMag, false, false); // 正立虚像
+                        sCtx.restore();
+
+                        statusBox.innerText = "🔍 レンズをのぞくと、実物より大きな像（正立虚像）が見えます。";
+                        statusBox.className = "mt-4 p-3 rounded-lg font-bold text-center text-sm bg-blue-100 text-blue-800 border border-blue-300";
+                    } else {
+                        sCtx.restore();
+                        statusBox.innerText = "実像が結像しているため、うまく焦点を合わせられません。\nろうそくを焦点（f）より内側に近づけてください。";
+                        statusBox.className = "mt-4 p-3 rounded-lg font-bold text-center text-sm bg-gray-200 text-gray-700 border border-gray-400";
+                    }
+                }
+            }
+
+            function getMousePos(evt) {
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                let clientX = evt.touches && evt.touches.length > 0 ? evt.touches[0].clientX : evt.clientX;
+                return (clientX - rect.left) * scaleX;
+            }
+
+            function handleStart(e) {
+                e.preventDefault();
+                const mouseX = getMousePos(e);
+                const hitZone = 30;
+
+                if (Math.abs(mouseX - candleX) < hitZone) {
+                    draggingElement = 'candle';
+                    isDragging = true;
+                    canvas.style.cursor = 'ew-resize';
+                } else if (Math.abs(mouseX - screenX) < hitZone) {
+                    draggingElement = 'screen'; // スクリーン/目 兼用
+                    isDragging = true;
+                    canvas.style.cursor = 'ew-resize';
+                }
+            }
+
+            function handleMove(e) {
+                if (!isDragging) {
+                    const mouseX = getMousePos(e);
+                    const hitZone = 30;
+                    if (Math.abs(mouseX - candleX) < hitZone || Math.abs(mouseX - screenX) < hitZone) {
+                        canvas.style.cursor = 'ew-resize';
+                    } else {
+                        canvas.style.cursor = 'crosshair';
+                    }
+                    return;
+                }
+                e.preventDefault();
+                const mouseX = getMousePos(e);
+
+                if (draggingElement === 'candle') {
+                    candleX = Math.min(lensX - 10, Math.max(20, mouseX));
+                } else if (draggingElement === 'screen') {
+                    screenX = Math.max(lensX + 10, Math.min(canvas.width - 20, mouseX));
+                }
+                draw();
+            }
+
+            function handleEnd() {
+                isDragging = false;
+                draggingElement = null;
+                canvas.style.cursor = 'crosshair';
+            }
+
+            canvas.addEventListener('mousedown', handleStart);
+            canvas.addEventListener('mousemove', handleMove);
+            window.addEventListener('mouseup', handleEnd);
+
+            canvas.addEventListener('touchstart', handleStart, {passive: false});
+            canvas.addEventListener('touchmove', handleMove, {passive: false});
+            window.addEventListener('touchend', handleEnd);
+
+            setTimeout(handleResize, 100);
+        })();
+    </script>
+</body>
+</html>
