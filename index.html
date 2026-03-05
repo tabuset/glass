@@ -79,7 +79,7 @@
                         <span id="dist-a" class="font-bold text-lg">200</span> <span class="text-xs">px</span>
                     </div>
                     <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
-                        <span class="block text-gray-500 mb-1">レンズから実像 (b)</span>
+                        <span id="dist-b-label" class="block text-gray-500 mb-1">レンズから実像 (b)</span>
                         <span id="dist-b" class="font-bold text-lg text-blue-600">-</span> <span class="text-xs">px</span>
                     </div>
                     <div class="bg-green-50 p-3 rounded-lg border border-green-100">
@@ -125,7 +125,7 @@
             let lensX = 400;
             
             let candleX = 0;
-            let screenX = 0; // 実像モード時はスクリーン、虚像モード時は目の位置
+            let screenX = 0;
             const candleHeight = 40;
             const flameTipY = candleHeight + 20;
 
@@ -133,7 +133,7 @@
             let isDragging = false;
 
             let currentSource = 'tip';
-            let obsMode = 'real'; // 'real' or 'virtual'
+            let obsMode = 'real';
             let isAnimating = false;
             let animProgress = 0;
             let lastTime = 0;
@@ -143,7 +143,6 @@
                 radio.addEventListener('change', (e) => {
                     obsMode = e.target.value;
                     const sourcePanel = document.getElementById('source-selector-panel');
-                    // 虚像モード時は出発点選択を無効化（全体のアニメーションになるため）
                     if (obsMode === 'virtual') {
                         sourcePanel.style.opacity = '0.4';
                         sourcePanel.style.pointerEvents = 'none';
@@ -230,36 +229,56 @@
                 context.translate(x, y);
                 if (isInverted) context.scale(1, -1);
                 context.scale(mag, mag);
-                if (isVirtual) context.globalAlpha = 0.4;
-
-                const h = baseHeight;
-                context.fillStyle = isVirtual ? '#cbd5e1' : '#fef08a';
-                context.strokeStyle = isVirtual ? '#94a3b8' : '#ca8a04';
-                context.lineWidth = 2 / mag;
-                const w = 16;
-                context.fillRect(-w/2, -h, w, h);
-                if (!isVirtual) context.strokeRect(-w/2, -h, w, h);
-
-                context.beginPath();
-                context.moveTo(0, -h);
-                context.lineTo(0, -h - 6);
-                context.strokeStyle = '#333';
-                context.lineWidth = 1.5 / mag;
-                context.stroke();
-
-                context.beginPath();
-                context.moveTo(0, -h - 20);
-                context.quadraticCurveTo(8, -h - 10, 0, -h - 6);
-                context.quadraticCurveTo(-8, -h - 10, 0, -h - 20);
-                context.fillStyle = isVirtual ? '#fb923c' : '#ef4444';
-                context.fill();
                 
-                context.beginPath();
-                context.moveTo(0, -h - 16);
-                context.quadraticCurveTo(4, -h - 10, 0, -h - 6);
-                context.quadraticCurveTo(-4, -h - 10, 0, -h - 16);
-                context.fillStyle = '#fbbf24';
-                context.fill();
+                const h = baseHeight;
+                const w = 16;
+
+                if (isVirtual) {
+                    // 【虚像の表現】実体を持たない「ホログラム」や「脳の投影」として描画
+                    context.globalAlpha = 0.7;
+                    context.setLineDash([3, 4]);
+                    context.strokeStyle = '#0ea5e9'; // スカイブルーで非現実感
+                    context.lineWidth = 1.5 / mag;
+                    
+                    // ろうそく本体 (枠のみ)
+                    context.strokeRect(-w/2, -h, w, h);
+                    
+                    // 芯
+                    context.beginPath(); context.moveTo(0, -h); context.lineTo(0, -h - 6); context.stroke();
+                    
+                    // 炎の輪郭
+                    context.beginPath();
+                    context.moveTo(0, -h - 20);
+                    context.quadraticCurveTo(8, -h - 10, 0, -h - 6);
+                    context.quadraticCurveTo(-8, -h - 10, 0, -h - 20);
+                    context.stroke();
+
+                    // 中身はごく薄い色で「実体がない」ことを強調
+                    context.fillStyle = 'rgba(14, 165, 233, 0.05)';
+                    context.fillRect(-w/2, -h, w, h);
+                    context.fill(); // 炎
+
+                } else {
+                    // 【実物の表現】しっかり塗りつぶす
+                    context.fillStyle = '#fef08a';
+                    context.strokeStyle = '#ca8a04';
+                    context.lineWidth = 2 / mag;
+                    context.fillRect(-w/2, -h, w, h);
+                    context.strokeRect(-w/2, -h, w, h);
+
+                    context.beginPath(); context.moveTo(0, -h); context.lineTo(0, -h - 6);
+                    context.strokeStyle = '#333'; context.lineWidth = 1.5 / mag; context.stroke();
+
+                    context.beginPath(); context.moveTo(0, -h - 20);
+                    context.quadraticCurveTo(8, -h - 10, 0, -h - 6);
+                    context.quadraticCurveTo(-8, -h - 10, 0, -h - 20);
+                    context.fillStyle = '#ef4444'; context.fill();
+                    
+                    context.beginPath(); context.moveTo(0, -h - 16);
+                    context.quadraticCurveTo(4, -h - 10, 0, -h - 6);
+                    context.quadraticCurveTo(-4, -h - 10, 0, -h - 16);
+                    context.fillStyle = '#fbbf24'; context.fill();
+                }
 
                 context.restore();
             }
@@ -268,7 +287,6 @@
                 context.save();
                 context.translate(x, y);
                 
-                // 目の輪郭 (レンズ側を見る)
                 context.beginPath();
                 context.moveTo(15, 0);
                 context.quadraticCurveTo(0, -20, -15, 0);
@@ -279,19 +297,16 @@
                 context.strokeStyle = '#334155';
                 context.stroke();
 
-                // 瞳
                 context.beginPath();
                 context.arc(-5, 0, 7, 0, Math.PI * 2);
                 context.fillStyle = '#0f172a';
                 context.fill();
 
-                // 瞳孔
                 context.beginPath();
                 context.arc(-6, 0, 3, 0, Math.PI * 2);
                 context.fillStyle = '#000000';
                 context.fill();
 
-                // 光の反射
                 context.beginPath();
                 context.arc(-8, -3, 2, 0, Math.PI * 2);
                 context.fillStyle = '#ffffff';
@@ -356,61 +371,98 @@
                     ctx.beginPath(); ctx.moveTo(candleX, sourceY); ctx.lineTo(imageX + (imageX - candleX)*0.1, imageY + (imageY - sourceY)*0.1);
                     ctx.strokeStyle = 'rgba(34, 197, 94, 0.6)'; ctx.stroke();
 
-                    drawCandle(ctx, imageX, axisY, candleHeight, mag, true, true);
+                    drawCandle(ctx, imageX, axisY, candleHeight, mag, false, true); // 実像は実体として描画
                     
-                    // 光源のマーク
                     ctx.beginPath(); ctx.arc(candleX, sourceY, 5, 0, Math.PI * 2);
                     ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = '#eab308'; ctx.lineWidth = 2; ctx.stroke();
 
                 } else if (a < F) {
                     const mag = Math.abs(b) / a;
                     imageY = axisY + (sourceY - axisY) * mag; 
+                    const imageY_tip = axisY + (-flameTipY) * mag; // 炎の先の虚像Y座標
 
-                    // 虚像モードの時は、わかりやすさのため教科書的な作図線を非表示にする
                     if (obsMode === 'real') {
                         ctx.beginPath(); ctx.moveTo(candleX, sourceY); ctx.lineTo(lensX, sourceY); ctx.lineTo(lensX + 200, sourceY + (axisY - sourceY) * (200 / F));
                         ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)'; ctx.stroke();
                         
                         ctx.beginPath(); ctx.moveTo(candleX, sourceY); ctx.lineTo(lensX + 200, sourceY + (axisY - sourceY) * ((lensX + 200 - candleX) / a));
                         ctx.strokeStyle = 'rgba(34, 197, 94, 0.6)'; ctx.stroke();
-
-                        ctx.setLineDash([4, 4]);
-                        ctx.beginPath(); ctx.moveTo(lensX, sourceY); ctx.lineTo(imageX, imageY); ctx.stroke();
-                        ctx.beginPath(); ctx.moveTo(candleX, sourceY); ctx.lineTo(imageX, imageY); ctx.stroke();
-                        ctx.setLineDash([]);
                         
-                        // 光源のマーク
                         ctx.beginPath(); ctx.arc(candleX, sourceY, 5, 0, Math.PI * 2);
                         ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = '#eab308'; ctx.lineWidth = 2; ctx.stroke();
                     }
 
+                    // 虚像の描画（ホログラム表現）
                     drawCandle(ctx, imageX, axisY, candleHeight, mag, true, false);
 
-                    // 虚像モードでアニメーション停止中なら、目に届く各光を薄く描画
+                    if (obsMode === 'virtual') {
+                        // 【視角（見かけの大きさ）の可視化】
+                        ctx.save();
+                        // 1. 実物の視角（グレー）
+                        let real_aTop = Math.atan2((axisY - flameTipY) - axisY, candleX - screenX);
+                        let real_aBottom = Math.atan2(0, candleX - screenX);
+                        if (real_aBottom > 0) real_aBottom -= Math.PI * 2;
+                        
+                        ctx.beginPath();
+                        ctx.arc(screenX, axisY, 50, real_aTop, real_aBottom, true);
+                        ctx.lineTo(screenX, axisY);
+                        ctx.fillStyle = 'rgba(148, 163, 184, 0.2)'; // 薄いグレー
+                        ctx.fill();
+                        ctx.strokeStyle = '#94a3b8'; ctx.stroke();
+                        
+                        // 2. 虚像の視角（目に入ってくる光の角度・ブルー）
+                        let aTop = Math.atan2(imageY_tip - axisY, imageX - screenX);
+                        let aBottom = Math.atan2(0, imageX - screenX);
+                        if (aBottom > 0) aBottom -= Math.PI * 2; // 反時計回りのためマイナスに揃える
+                        
+                        ctx.beginPath();
+                        ctx.arc(screenX, axisY, 90, aTop, aBottom, true);
+                        ctx.lineTo(screenX, axisY);
+                        ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+                        ctx.fill();
+                        ctx.strokeStyle = '#0ea5e9'; ctx.lineWidth = 1.5; ctx.stroke();
+
+                        // 角度のラベル
+                        ctx.fillStyle = '#64748b'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+                        ctx.fillText("実物の視角", screenX + Math.cos((real_aTop+real_aBottom)/2)*55, axisY + Math.sin((real_aTop+real_aBottom)/2)*55);
+                        
+                        ctx.fillStyle = '#0284c7'; ctx.font = 'bold 12px sans-serif';
+                        ctx.fillText("広くなった視角", screenX + Math.cos((aTop+aBottom)/2)*95, axisY + Math.sin((aTop+aBottom)/2)*95 - 5);
+                        ctx.fillText("(見かけの大きさ)", screenX + Math.cos((aTop+aBottom)/2)*95, axisY + Math.sin((aTop+aBottom)/2)*95 + 10);
+                        ctx.restore();
+
+                        // 【虚像の真理ラベル】
+                        ctx.fillStyle = '#0ea5e9';
+                        ctx.font = 'bold 14px sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.fillText("🧠 脳が認識している像（錯覚）", imageX, imageY_tip - 35);
+                        ctx.font = '11px sans-serif';
+                        ctx.fillText("実体はない・光の投影", imageX, imageY_tip - 18);
+                    }
+
+                    // 虚像モードでアニメーション停止中の薄い光
                     if (obsMode === 'virtual' && !isAnimating) {
                         const points = [
-                            { y: axisY - flameTipY, color: '#ef4444', yeOffset: -6 },   // 赤 (炎の先)
-                            { y: axisY - candleHeight, color: '#f59e0b', yeOffset: -2 }, // 黄 (付け根)
-                            { y: axisY - candleHeight / 2, color: '#22c55e', yeOffset: 2 }, // 緑 (中央)
-                            { y: axisY, color: '#3b82f6', yeOffset: 6 }                // 青 (下端)
+                            { y: axisY - flameTipY, color: '#ef4444', yeOffset: -6 },
+                            { y: axisY - candleHeight, color: '#f59e0b', yeOffset: -2 },
+                            { y: axisY - candleHeight / 2, color: '#22c55e', yeOffset: 2 },
+                            { y: axisY, color: '#3b82f6', yeOffset: 6 }
                         ];
                         ctx.lineWidth = 1.0;
                         points.forEach(pt => {
                             const y_o = pt.y;
                             const y_i = axisY + (y_o - axisY) * mag;
                             const x_e = screenX;
-                            const y_e = axisY + pt.yeOffset; // 瞳孔の範囲内に少し分散
+                            const y_e = axisY + pt.yeOffset;
                             const y_L = y_i + (lensX - imageX) * (y_e - y_i) / (x_e - imageX);
                             
-                            // 物体から目まで
                             ctx.beginPath(); ctx.moveTo(candleX, y_o); ctx.lineTo(lensX, y_L); ctx.lineTo(x_e, y_e);
                             ctx.strokeStyle = pt.color; ctx.globalAlpha = 0.6; ctx.stroke();
                             
-                            // 目から虚像への錯覚の延長線
+                            // 錯覚の延長線
                             ctx.save(); ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(x_e, y_e); ctx.lineTo(imageX, y_i);
-                            ctx.strokeStyle = pt.color; ctx.globalAlpha = 0.4; ctx.stroke(); ctx.restore();
+                            ctx.strokeStyle = pt.color; ctx.globalAlpha = 0.3; ctx.stroke(); ctx.restore();
                             
-                            // ろうそく側の光の出発点に小さなマーク
                             ctx.beginPath(); ctx.arc(candleX, y_o, 3, 0, Math.PI*2); ctx.fillStyle = pt.color; ctx.fill();
                         });
                         ctx.globalAlpha = 1.0;
@@ -420,12 +472,11 @@
                 // --- アニメーション光線の描画 ---
                 if (isAnimating) {
                     if (obsMode === 'virtual' && a < F) {
-                        // 【虚像モード特有のアニメーション：各部から目に集まる光】
                         const points = [
-                            { y: axisY - flameTipY, color: '#ef4444', yeOffset: -6 },   // 炎の先
-                            { y: axisY - candleHeight, color: '#f59e0b', yeOffset: -2 }, // 付け根
-                            { y: axisY - candleHeight / 2, color: '#22c55e', yeOffset: 2 }, // 中央
-                            { y: axisY, color: '#3b82f6', yeOffset: 6 }                // 下端
+                            { y: axisY - flameTipY, color: '#ef4444', yeOffset: -6 },
+                            { y: axisY - candleHeight, color: '#f59e0b', yeOffset: -2 },
+                            { y: axisY - candleHeight / 2, color: '#22c55e', yeOffset: 2 },
+                            { y: axisY, color: '#3b82f6', yeOffset: 6 }
                         ];
                         
                         points.forEach(pt => {
@@ -434,8 +485,6 @@
                             const y_i = axisY + (y_o - axisY) * mag;
                             const x_e = screenX;
                             const y_e = axisY + pt.yeOffset;
-                            
-                            // レンズ上の通過点
                             const y_L = y_i + (lensX - imageX) * (y_e - y_i) / (x_e - imageX);
                             
                             const d1 = Math.hypot(lensX - candleX, y_L - y_o);
@@ -445,12 +494,10 @@
                             ctx.lineWidth = 2.5;
                             
                             if (animProgress <= d1) {
-                                // 1. 光源 -> レンズ
                                 const p = animProgress;
                                 ctx.beginPath(); ctx.moveTo(candleX, y_o); ctx.lineTo(candleX + (lensX - candleX)/d1 * p, y_o + (y_L - y_o)/d1 * p);
                                 ctx.strokeStyle = pt.color; ctx.stroke();
                             } else if (animProgress <= d1 + d2) {
-                                // 2. レンズ -> 目
                                 ctx.beginPath(); ctx.moveTo(candleX, y_o); ctx.lineTo(lensX, y_L);
                                 ctx.strokeStyle = pt.color; ctx.stroke();
                                 
@@ -458,33 +505,31 @@
                                 ctx.beginPath(); ctx.moveTo(lensX, y_L); ctx.lineTo(lensX + (x_e - lensX)/d2 * p, y_L + (y_e - y_L)/d2 * p);
                                 ctx.stroke();
                             } else {
-                                // 3. 目から虚像へ逆走（脳の錯覚）
                                 ctx.beginPath(); ctx.moveTo(candleX, y_o); ctx.lineTo(lensX, y_L); ctx.lineTo(x_e, y_e);
                                 ctx.strokeStyle = pt.color; ctx.stroke();
                                 
                                 const p = animProgress - (d1 + d2);
                                 const drawDist = Math.min(p, d3);
                                 
+                                // 虚像モードの延長線は「ホログラム感」を出す
                                 ctx.save();
-                                ctx.setLineDash([4, 4]);
+                                ctx.setLineDash([3, 4]);
                                 ctx.beginPath(); ctx.moveTo(x_e, y_e); ctx.lineTo(x_e + (imageX - x_e)/d3 * drawDist, y_e + (y_i - y_e)/d3 * drawDist);
                                 ctx.strokeStyle = pt.color;
                                 ctx.globalAlpha = 0.8;
-                                ctx.lineWidth = 3;
+                                ctx.lineWidth = 2;
                                 ctx.stroke();
                                 ctx.restore();
                                 
-                                // 虚像の対応する位置に到達したら光る
                                 if (p >= d3) {
                                      ctx.beginPath(); ctx.arc(imageX, y_i, 5, 0, Math.PI * 2);
                                      ctx.fillStyle = pt.color; ctx.fill();
                                 }
                             }
-                            // 出発点マーク
                             ctx.beginPath(); ctx.arc(candleX, y_o, 3, 0, Math.PI*2); ctx.fillStyle = pt.color; ctx.fill();
                         });
                     } else {
-                        // 【実像モードのアニメーション】
+                        // 実像モードアニメーション
                         ctx.lineWidth = 2.5;
                         const rayColor = 'rgba(234, 179, 8, 0.9)';
                         const lensRays = [-80, -40, 0, 40, 80];
@@ -579,8 +624,17 @@
                 document.getElementById('dist-s').innerText = Math.round(s);
                 
                 const bEl = document.getElementById('dist-b');
-                if (hasRealImage) bEl.innerText = Math.round(b);
-                else bEl.innerText = "実像なし";
+                const bLabel = document.getElementById('dist-b-label');
+                
+                if (obsMode === 'real') {
+                    bLabel.innerText = "レンズから実像 (b)";
+                    if (hasRealImage) bEl.innerText = Math.round(b);
+                    else bEl.innerText = "実像なし";
+                } else {
+                    bLabel.innerText = "レンズから虚像 (b)";
+                    if (a < F) bEl.innerText = Math.round(Math.abs(b));
+                    else bEl.innerText = "-";
+                }
 
                 const viewTitle = document.getElementById('view-title');
                 const distSLabel = document.getElementById('dist-s-label');
@@ -591,7 +645,6 @@
                 sCtx.clearRect(0, 0, screenCanvas.width, screenCanvas.height);
 
                 if (obsMode === 'real') {
-                    // --- 実像モードのUI更新 ---
                     viewTitle.innerText = "正面から見たスクリーン";
                     distSLabel.innerText = "レンズからスクリーン";
                     hintTitle.innerText = "💡 学習のポイント";
@@ -617,8 +670,6 @@
                         if (diff < 5) {
                             statusBox.innerText = "✨ ピントが合っています！（倒立実像）";
                             statusBox.className = "mt-4 p-3 rounded-lg font-bold text-center text-sm bg-green-100 text-green-800 border border-green-300";
-                            let magText = Math.abs(mag - 1.0) < 0.1 ? "（物体と同じ大きさ）" : (mag > 1.0 ? "（物体より大きい）" : "（物体より小さい）");
-                            statusBox.innerText += "\n" + magText;
                         } else {
                             statusBox.innerText = "像がぼやけています。スクリーンを動かしてピントを合わせましょう。";
                             statusBox.className = "mt-4 p-3 rounded-lg font-bold text-center text-sm bg-yellow-100 text-yellow-800 border border-yellow-300";
@@ -626,40 +677,41 @@
                     } else {
                         sCtx.fillStyle = 'rgba(255, 230, 180, 0.2)';
                         sCtx.fillRect(0, 0, 300, 300);
-                        statusBox.innerText = a === F ? "光は平行になり、像はできません。" : "スクリーンに像は映りません。\n（虚像モードに切り替えてみましょう）";
+                        statusBox.innerText = "スクリーンに像は映りません。\n（虚像モードに切り替えてみましょう）";
                         statusBox.className = "mt-4 p-3 rounded-lg font-bold text-center text-sm bg-gray-200 text-gray-700 border border-gray-400";
                     }
 
                 } else {
-                    // --- 虚像モードのUI更新 ---
                     viewTitle.innerText = "レンズ越しの視界";
                     distSLabel.innerText = "レンズから目";
-                    hintTitle.innerText = "🧠 虚像が見える仕組み";
+                    hintTitle.innerText = "🧠 虚像の正体は「脳の投影」";
                     hintList.innerHTML = `
-                        <li>ろうそくの<strong>炎の先（赤）、付け根（黄）、中央（緑）、下端（青）</strong>から出た光が、それぞれ目に飛び込みます。</li>
-                        <li>目は、それぞれの光が「曲がらずに直進してきた」と錯覚するため、その延長線上に像があると感じます。</li>
-                        <li>光の延長線が元の位置関係のまま拡大されるため、<strong>大きくて正しい向きの像（正立虚像）</strong>が完成します。</li>
+                        <li>虚像に<strong>実体はありません</strong>。そこにスクリーンを置いても何も映りません。</li>
+                        <li>レンズを通ることで、目に飛び込む光の角度<strong>（視角）</strong>が大きく広がります。</li>
+                        <li>脳は「光は曲がらずに直進してくる」と思い込んでいるため、広がった角度の延長線上に<strong>「大きな物体があるはずだ」と空間を錯覚（投影）</strong>しています。</li>
+                        <li>つまり、虚像の「大きさ」や「距離」は、脳が作り出した見かけの座標にすぎません。</li>
                     `;
 
-                    sCtx.fillStyle = '#f0f9ff'; // 明るい背景
+                    sCtx.fillStyle = '#f0f9ff';
                     sCtx.fillRect(0, 0, 300, 300);
 
                     sCtx.save();
                     sCtx.beginPath();
                     sCtx.arc(150, 150, 140, 0, Math.PI * 2);
-                    sCtx.clip(); // レンズの丸枠でクリッピング
+                    sCtx.clip();
                     sCtx.fillStyle = '#ffffff';
                     sCtx.fill();
 
                     if (a < F) {
                         const mag = Math.abs(b) / a;
-                        const visualMag = mag * 1.2; // 見た目の倍率調整
+                        const visualMag = mag * 1.2;
                         
-                        sCtx.translate(150, 260); // 下部基準に
-                        drawCandle(sCtx, 0, 0, candleHeight, visualMag, false, false); // 正立虚像
+                        sCtx.translate(150, 260);
+                        // スクリーンビューでもホログラムっぽく
+                        drawCandle(sCtx, 0, 0, candleHeight, visualMag, true, false);
                         sCtx.restore();
 
-                        statusBox.innerText = "🔍 レンズをのぞくと、実物より大きな像（正立虚像）が見えます。";
+                        statusBox.innerText = "🔍 視角が広がるため、実物より大きな像（正立虚像）が見えるように錯覚します。";
                         statusBox.className = "mt-4 p-3 rounded-lg font-bold text-center text-sm bg-blue-100 text-blue-800 border border-blue-300";
                     } else {
                         sCtx.restore();
@@ -686,7 +738,7 @@
                     isDragging = true;
                     canvas.style.cursor = 'ew-resize';
                 } else if (Math.abs(mouseX - screenX) < hitZone) {
-                    draggingElement = 'screen'; // スクリーン/目 兼用
+                    draggingElement = 'screen';
                     isDragging = true;
                     canvas.style.cursor = 'ew-resize';
                 }
